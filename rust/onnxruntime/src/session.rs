@@ -1,6 +1,6 @@
 //! Module containing session types
 
-use std::{convert::TryFrom, ffi::CString, fmt::Debug, path::Path};
+use std::{convert::TryFrom, ffi::{CString, c_char}, fmt::Debug, path::Path};
 
 #[cfg(not(target_family = "windows"))]
 use std::os::unix::ffi::OsStrExt;
@@ -423,17 +423,17 @@ impl Session {
             .map(|output| output.name.clone())
             .map(|n| CString::new(n).unwrap())
             .collect();
-        let output_names_ptr: Vec<*const i8> = output_names_cstring
+        let output_names_ptr: Vec<*const c_char> = output_names_cstring
             .iter()
-            .map(|n| n.as_ptr().cast::<i8>())
+            .map(|n| n.as_ptr().cast::<c_char>())
             .collect();
 
-        let input_names_ptr: Vec<*const i8> = self
+        let input_names_ptr: Vec<*const c_char> = self
             .inputs
             .iter()
             .map(|input| input.name.clone())
             .map(|n| CString::new(n).unwrap())
-            .map(|n| n.into_raw() as *const i8)
+            .map(|n| n.into_raw() as *const c_char)
             .collect();
 
         {
@@ -508,7 +508,7 @@ impl Session {
             .into_iter()
             .map(|p| {
                 assert_not_null_pointer(p, "i8 for CString")?;
-                unsafe { Ok(CString::from_raw(p as *mut i8)) }
+                unsafe { Ok(CString::from_raw(p as *mut c_char)) }
             })
             .collect();
         cstrings?;
@@ -632,6 +632,8 @@ unsafe fn get_tensor_dimensions(
 /// Those functions are only to be used from inside the
 /// `SessionBuilder::with_model_from_file()` method.
 mod dangerous {
+    use std::ffi::c_char;
+
     use super::{
         assert_not_null_pointer, assert_null_pointer, char_p_to_string, get_tensor_dimensions,
         status_to_result, sys, Input, OrtApiError, OrtError, Output, Result, TensorElementDataType,
@@ -694,14 +696,14 @@ mod dangerous {
             *const sys::OrtSession,
             usize,
             *mut sys::OrtAllocator,
-            *mut *mut i8,
+            *mut *mut c_char,
         ) -> *mut sys::OrtStatus },
         session_ptr: *mut sys::OrtSession,
         allocator_ptr: *mut sys::OrtAllocator,
         i: usize,
         env: _Environment,
     ) -> Result<String> {
-        let mut name_bytes: *mut i8 = std::ptr::null_mut();
+        let mut name_bytes: *mut c_char = std::ptr::null_mut();
 
         let status = unsafe { f(session_ptr, i, allocator_ptr, &mut name_bytes) };
         status_to_result(status).map_err(OrtError::InputName)?;

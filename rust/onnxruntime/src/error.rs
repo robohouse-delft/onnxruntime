@@ -1,6 +1,6 @@
 //! Module containing error definitions.
 
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, ffi::c_char};
 
 use thiserror::Error;
 
@@ -211,7 +211,7 @@ impl From<OrtStatusWrapper> for std::result::Result<(), OrtApiError> {
         if status.0.is_null() {
             Ok(())
         } else {
-            let raw: *const i8 = unsafe {
+            let raw: *const c_char = unsafe {
                 ENV.get()
                     .unwrap()
                     .lock()
