@@ -341,6 +341,18 @@ impl<'a> TryFrom<OrtOutputTensor> for OrtOutput<'a> {
                 sys::ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16 => {
                     unimplemented!()
                 }
+                sys::ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT8E4M3FN => {
+                    unimplemented!()
+                }
+                sys::ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT8E4M3FNUZ => {
+                    unimplemented!()
+                }
+                sys::ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT8E5M2 => {
+                    unimplemented!()
+                }
+                sys::ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT8E5M2FNUZ => {
+                    unimplemented!()
+                }
             }
         }
     }
