@@ -1,6 +1,6 @@
 //! Module containing session types
 
-use std::{convert::TryFrom, ffi::{CString, c_char}, fmt::Debug, path::Path, ptr::null_mut};
+use std::{convert::TryFrom, ffi::{CString, c_char, CStr}, fmt::Debug, path::Path, ptr::{null_mut, null}};
 
 #[cfg(not(target_family = "windows"))]
 use std::os::unix::ffi::OsStrExt;
@@ -31,6 +31,47 @@ use tracing::{debug, error};
 
 #[cfg(feature = "model-fetching")]
 use crate::{download::AvailableOnnxModel, error::OrtDownloadError};
+
+/// Device to run OpenVINO execution provider with.
+pub enum OpenVinoDeviceType {
+    /// "CPU_FP32"
+    CpuFp32,
+    /// "CPU_FP16"
+    CpuFp16,
+    /// "GPU_FP32"
+    GpuFp32,
+    /// "GPU_FP16"
+    GpuFp16,
+}
+
+impl From<OpenVinoDeviceType> for &str {
+    fn from(value: OpenVinoDeviceType) -> Self {
+        match value {
+            OpenVinoDeviceType::CpuFp32 => "CPU_FP32",
+            OpenVinoDeviceType::CpuFp16 => "CPU_FP16",
+            OpenVinoDeviceType::GpuFp32 => "GPU_FP32",
+            OpenVinoDeviceType::GpuFp16 => "GPU_FP16",
+        }
+    }
+}
+
+/// Options for the OpenVINO execution provider.
+pub struct OpenVinoProviderOptions {
+    /// Device type to run on.
+    pub device_type: OpenVinoDeviceType,
+    ///
+    pub enable_vpu_fast_compile: bool,
+    ///
+    pub device_id: Option<String>,
+    /// Number of threads to use. Set to 0 for default number of threads.
+    pub num_of_threads: usize,
+    ///
+    pub cache_dir: Option<String>,
+    ///
+    pub enable_opencl_throttling: bool,
+    ///
+    pub enable_dynamic_shapes: bool,
+}
 
 /// Type used to create a session using the _builder pattern_
 ///
@@ -164,14 +205,14 @@ impl<'a> SessionBuilder<'a> {
     /// Append a CUDA execution provider
     pub fn with_execution_provider_cuda(self) -> Result<SessionBuilder<'a>> {
         let mut cuda_options: *mut sys::OrtCUDAProviderOptionsV2 = null_mut();
-        // let status = unsafe {
-        //     self.env
-        //         .env()
-        //         .api()
-        //         .CreateCUDAProviderOptions
-        //         .unwrap()(&mut cuda_options)
-        // };
-        // status_to_result(status).map_err(OrtError::CudaProviderOptions)?;
+        let status = unsafe {
+            self.env
+                .env()
+                .api()
+                .CreateCUDAProviderOptions
+                .unwrap()(&mut cuda_options)
+        };
+        status_to_result(status).map_err(OrtError::CudaProviderOptions)?;
 
         let status = unsafe {
             self.env
@@ -182,13 +223,72 @@ impl<'a> SessionBuilder<'a> {
         };
         status_to_result(status).map_err(OrtError::AppendExecutionProviderCuda)?;
 
-        // unsafe {
-        //     self.env
-        //         .env()
-        //         .api()
-        //         .ReleaseCUDAProviderOptions
-        //         .unwrap()(cuda_options);
-        // };
+        unsafe {
+            self.env
+                .env()
+                .api()
+                .ReleaseCUDAProviderOptions
+                .unwrap()(cuda_options);
+        };
+        Ok(self)
+    }
+
+    /// Append a TensorRT execution provider
+    pub fn with_execution_provider_tensorrt(self) -> Result<SessionBuilder<'a>> {
+        let mut tensorrt_options: *mut sys::OrtTensorRTProviderOptionsV2 = null_mut();
+        let status = unsafe {
+            self.env
+                .env()
+                .api()
+                .CreateTensorRTProviderOptions
+                .unwrap()(&mut tensorrt_options)
+        };
+        status_to_result(status).map_err(OrtError::TensorRtProviderOptions)?;
+
+        let status = unsafe {
+            self.env
+                .env()
+                .api()
+                .SessionOptionsAppendExecutionProvider_TensorRT_V2
+                .unwrap()(self.session_options_ptr, tensorrt_options)
+        };
+        status_to_result(status).map_err(OrtError::AppendExecutionProviderTensorRT)?;
+
+        unsafe {
+            self.env
+                .env()
+                .api()
+                .ReleaseTensorRTProviderOptions
+                .unwrap()(tensorrt_options);
+        };
+        Ok(self)
+    }
+
+    /// Append a TensorRT execution provider
+    pub fn with_execution_provider_openvino(self, options: OpenVinoProviderOptions) -> Result<SessionBuilder<'a>> {
+        // For some reason there is no CreateOpenVINOProviderOptions?
+        let device_type = CString::new::<&str>(options.device_type.into()).unwrap();
+        let device_id = CString::new(options.device_id.unwrap_or_default().as_str()).unwrap();
+        let cache_dir = CString::new(options.cache_dir.unwrap_or_default().as_str()).unwrap();
+        let mut openvino_options = sys::OrtOpenVINOProviderOptions {
+            device_type: device_type.as_ptr(),
+            enable_vpu_fast_compile: options.enable_vpu_fast_compile as u8,
+            device_id: device_id.as_ptr(),
+            num_of_threads: options.num_of_threads,
+            cache_dir: cache_dir.as_ptr(),
+            context: null_mut(),
+            enable_opencl_throttling: options.enable_opencl_throttling as u8,
+            enable_dynamic_shapes: options.enable_dynamic_shapes as u8,
+        };
+
+        let status = unsafe {
+            self.env
+                .env()
+                .api()
+                .SessionOptionsAppendExecutionProvider_OpenVINO
+                .unwrap()(self.session_options_ptr, &mut openvino_options)
+        };
+        status_to_result(status).map_err(OrtError::AppendExecutionProviderOpenVino)?;
         Ok(self)
     }
 

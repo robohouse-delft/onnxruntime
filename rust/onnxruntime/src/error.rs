@@ -124,6 +124,15 @@ pub enum OrtError {
     /// Error occurred when appending CUDA execution provider
     #[error("Failed to append CUDA execution provider: {0}")]
     AppendExecutionProviderCuda(OrtApiError),
+    /// Error occurred when creating TensorRT provider options
+    #[error("Failed to create TensorRT provider options: {0}")]
+    TensorRtProviderOptions(OrtApiError),
+    /// Error occurred when appending TensorRT execution provider
+    #[error("Failed to append TensorRT execution provider: {0}")]
+    AppendExecutionProviderTensorRT(OrtApiError),
+    /// Error occurred when appending OpenVINO execution provider
+    #[error("Failed to append OpenVINO execution provider: {0}")]
+    AppendExecutionProviderOpenVino(OrtApiError),
 }
 
 /// Error used when dimensions of input (from model and from inference call)
